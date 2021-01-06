@@ -340,6 +340,13 @@ function createScene() {
   window.addEventListener('resize', handleWindowResize, false);
 }
 
+// Rendering
+
+function loop() {
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
 // Code Structure
 
 function init() {
