@@ -557,6 +557,11 @@ function updatePlane() {
 
   // update the airplane's position
   airplane.mesh.position.y += (targetY - airplane.mesh.position.y) * 0.1;
+
+  // Rotate the plane proportionally to the remaining distance
+  airplane.mesh.rotation.z = (targetY - airplane.mesh.position.y) * 0.0128;
+  airplane.mesh.rotation.x = (airplane.mesh.position.y - targetY) * 0.0064;
+
   airplane.propeller.rotation.x += 0.3;
 
   airplane.pilot.updateHairs();
