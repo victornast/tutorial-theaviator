@@ -7,9 +7,33 @@ Sea = function () {
   // the parameters are:
   // radius top, radius bottom, height, number of segments on the radius, number of segments vertically
   let geom = new THREE.CylinderGeometry(600, 600, 800, 40, 10);
-
-  // rotate the geometry on the x axis
   geom.applyMatrix(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+  // important: by merging vertices we ensure the continuity of the waves
+  geom.mergeVertices();
+
+  // get the vertices
+  let l = geom.vertices.length;
+
+  // create an array to store new data associated to each vertex
+  this.waves = [];
+
+  for (let i = 0; i < l; i++) {
+    // get each vertex
+    let v = geom.vertices[i];
+
+    // store some data associated to it
+    this.waves.push({
+      y: v.y,
+      x: v.x,
+      z: v.z,
+      // a random angle
+      ang: Math.random() * Math.PI * 2,
+      // a random distance
+      amp: 5 + Math.random() * 15,
+      // a random speed between 0.016 and 0.048 radians / frame
+      speed: 0.016 + Math.random() * 0.032
+    });
+  }
 
   // create the material
   let mat = new THREE.MeshPhongMaterial({
@@ -25,6 +49,37 @@ Sea = function () {
 
   // Allow the sea to receive shadows
   this.mesh.receiveShadow = true;
+};
+
+// now we create the function that will be called in each frame
+// to update the position of the vertices to simulate the waves
+
+Sea.prototype.moveWaves = function () {
+  // get the vertices
+  let verts = this.mesh.geometry.vertices;
+  let l = verts.length;
+
+  for (let i = 0; i < l; i++) {
+    let v = verts[i];
+
+    // get the data associated to it
+    let vprops = this.waves[i];
+
+    // update the position of the vertex
+    v.x = vprops.x + Math.cos(vprops.ang) * vprops.amp;
+    v.y = vprops.y + Math.sin(vprops.ang) * vprops.amp;
+
+    // increment the angle for the next frame
+    vprops.ang += vprops.speed;
+  }
+
+  // Tell the renderer that the geometry of the sea has changed.
+  // In fact, in order to maintain the best level of performance,
+  // three.js caches the geometries and ignores any changes
+  // unless we add this line
+  this.mesh.geometry.verticesNeedUpdate = true;
+
+  sea.mesh.rotation.z += 0.005;
 };
 
 // Instantiate the sea and add it to the scene:
@@ -136,16 +191,138 @@ function createSky() {
   scene.add(sky.mesh);
 }
 
+// Add Aviator: Dynamic geometry
+
+const Pilot = function () {
+  this.mesh = new THREE.Object3D();
+  this.mesh.name = 'pilot';
+
+  // angleHairs is a property used to animate the hair later
+  this.angleHairs = 0;
+
+  // Body of the pilot
+  let bodyGeom = new THREE.BoxGeometry(15, 15, 15);
+  let bodyMat = new THREE.MeshPhongMaterial({
+    color: Colors.brown,
+    shading: THREE.FlatShading
+  });
+  let body = new THREE.Mesh(bodyGeom, bodyMat);
+  body.position.set(2, -12, 0);
+  this.mesh.add(body);
+
+  // Face of the pilot
+  let faceGeom = new THREE.BoxGeometry(10, 10, 10);
+  let faceMat = new THREE.MeshLambertMaterial({ color: Colors.pink });
+  let face = new THREE.Mesh(faceGeom, faceMat);
+  this.mesh.add(face);
+
+  // Hair element
+  let hairGeom = new THREE.BoxGeometry(4, 4, 4);
+  let hairMat = new THREE.MeshLambertMaterial({ color: Colors.brown });
+  let hair = new THREE.Mesh(hairGeom, hairMat);
+  // Align the shape of the hair to its bottom boundary, that will make it easier to scale.
+  hair.geometry.applyMatrix(new THREE.Matrix4().makeTranslation(0, 2, 0));
+
+  // create a container for the hair
+  let hairs = new THREE.Object3D();
+
+  // create a container for the hairs at the top
+  // of the head (the ones that will be animated)
+  this.hairsTop = new THREE.Object3D();
+
+  // create the hairs at the top of the head
+  // and position them on a 3 x 4 grid
+  for (let i = 0; i < 12; i++) {
+    let h = hair.clone();
+    let col = i % 3;
+    let row = Math.floor(i / 3);
+    let startPosZ = -4;
+    let startPosX = -4;
+    h.position.set(startPosX + row * 4, 0, startPosZ + col * 4);
+    this.hairsTop.add(h);
+  }
+  hairs.add(this.hairsTop);
+
+  // create the hairs at the side of the face
+  let hairSideGeom = new THREE.BoxGeometry(12, 4, 2);
+  hairSideGeom.applyMatrix(new THREE.Matrix4().makeTranslation(-6, 0, 0));
+  let hairSideR = new THREE.Mesh(hairSideGeom, hairMat);
+  let hairSideL = hairSideR.clone();
+  hairSideR.position.set(8, -2, 6);
+  hairSideL.position.set(8, -2, -6);
+  hairs.add(hairSideR);
+  hairs.add(hairSideL);
+
+  // create the hairs at the back of the head
+  let hairBackGeom = new THREE.BoxGeometry(2, 8, 10);
+  let hairBack = new THREE.Mesh(hairBackGeom, hairMat);
+  hairBack.position.set(-1, -4, 0);
+  hairs.add(hairBack);
+  hairs.position.set(-5, 5, 0);
+
+  this.mesh.add(hairs);
+
+  let glassGeom = new THREE.BoxGeometry(5, 5, 5);
+  let glassMat = new THREE.MeshLambertMaterial({ color: Colors.brown });
+  let glassR = new THREE.Mesh(glassGeom, glassMat);
+  glassR.position.set(6, 0, 3);
+  let glassL = glassR.clone();
+  glassL.position.z = -glassR.position.z;
+
+  let glassAGeom = new THREE.BoxGeometry(11, 1, 11);
+  let glassA = new THREE.Mesh(glassAGeom, glassMat);
+  this.mesh.add(glassR);
+  this.mesh.add(glassL);
+  this.mesh.add(glassA);
+
+  let earGeom = new THREE.BoxGeometry(2, 3, 2);
+  let earL = new THREE.Mesh(earGeom, faceMat);
+  earL.position.set(0, 0, -6);
+  let earR = earL.clone();
+  earR.position.set(0, 0, 6);
+  this.mesh.add(earL);
+  this.mesh.add(earR);
+};
+
+// move the hair
+Pilot.prototype.updateHairs = function () {
+  // get the hair
+  let hairs = this.hairsTop.children;
+
+  // update them according to the angle angleHairs
+  let l = hairs.length;
+  for (let i = 0; i < l; i++) {
+    let h = hairs[i];
+    // each hair element will scale on cyclical basis between 75% and 100% of its original size
+    h.scale.y = 0.75 + Math.cos(this.angleHairs + i / 3) * 0.25;
+  }
+  // increment the angle for the next frame
+  this.angleHairs += 0.16;
+};
+
 // Complex Shapes: Airplane
 const AirPlane = function () {
   this.mesh = new THREE.Object3D();
 
-  // Create the cabin
-  let geomCockpit = new THREE.BoxGeometry(60, 50, 50, 1, 1, 1);
+  // Cockpit
+
+  let geomCockpit = new THREE.BoxGeometry(80, 50, 50, 1, 1, 1);
   let matCockpit = new THREE.MeshPhongMaterial({
     color: Colors.red,
     shading: THREE.FlatShading
   });
+
+  // access a specific vertex of a shape through
+  // the vertices array, and then move its x, y and z property:
+  geomCockpit.vertices[4].y -= 10;
+  geomCockpit.vertices[4].z += 20;
+  geomCockpit.vertices[5].y -= 10;
+  geomCockpit.vertices[5].z -= 20;
+  geomCockpit.vertices[6].y += 30;
+  geomCockpit.vertices[6].z += 20;
+  geomCockpit.vertices[7].y += 30;
+  geomCockpit.vertices[7].z -= 20;
+
   let cockpit = new THREE.Mesh(geomCockpit, matCockpit);
   cockpit.castShadow = true;
   cockpit.receiveShadow = true;
@@ -210,6 +387,11 @@ const AirPlane = function () {
   this.propeller.add(blade);
   this.propeller.position.set(50, 0, 0);
   this.mesh.add(this.propeller);
+
+  // Pilot
+  this.pilot = new Pilot();
+  this.pilot.mesh.position.set(-10, 27, 0);
+  this.mesh.add(this.pilot.mesh);
 };
 
 let airplane;
@@ -254,9 +436,13 @@ function createLights() {
   shadowLight.shadow.mapSize.width = 2048;
   shadowLight.shadow.mapSize.height = 2048;
 
+  // an ambient light modifies the global color of a scene and makes the shadows softer
+  ambientLight = new THREE.AmbientLight(0xdc8874, 0.5);
+
   // to activate the lights, just add them to the scene
   scene.add(hemisphereLight);
   scene.add(shadowLight);
+  scene.add(ambientLight);
 }
 
 // Setting up the Scene
@@ -350,6 +536,9 @@ function loop() {
   // update the plane on each frame
   updatePlane();
 
+  // update sea
+  sea.moveWaves();
+
   // render the scene
   renderer.render(scene, camera);
 
@@ -367,9 +556,10 @@ function updatePlane() {
   let targetY = normalize(mousePos.y, -1, 1, 25, 175);
 
   // update the airplane's position
-  airplane.mesh.position.y = targetY;
-  airplane.mesh.position.x = targetX;
+  airplane.mesh.position.y += (targetY - airplane.mesh.position.y) * 0.1;
   airplane.propeller.rotation.x += 0.3;
+
+  airplane.pilot.updateHairs();
 }
 
 function normalize(v, vmin, vmax, tmin, tmax) {
